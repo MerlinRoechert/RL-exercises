@@ -1,0 +1,9 @@
+If I don’t have access to transition probabilities, then I’m left only with V_before. 
+And if I don’t have a reward signal, I also don’t know in which direction my goal 
+lies or where I can gain more points. In other words, we may receive rewards, but 
+we didn’t know in advance that we would get them or how to achieve them.
+Regarding the transition function, instead of knowing the probabilities of ending 
+up in state A or B, we only observe the state we actually land in and treat it as 
+the ground truth. However, we have no information that we could have ended up in a different state as well.
+It’s like a blind chicken that occasionally finds a grain by chance, but has no ability 
+to anticipate where the next grain might be.
