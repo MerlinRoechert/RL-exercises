@@ -65,13 +65,18 @@ class ValueIteration(AbstractAgent):
             return
 
         # TODO: Call value_iteration() with the MDP components
-        V_opt, pi_opt = None, None  # placeholder
+        V_opt, pi_opt = value_iteration(
+            T = self.T,
+            R_sa = self.R_sa,
+            gamma = self.gamma,
+            seed = self.seed
+        )
 
         self.V = V_opt
         self.pi = pi_opt
         printr("Converged V:", self.V)
         printr("Derived policy π:", self.pi)
-        # self.policy_fitted = True # TODO: uncomment this after implementation
+        self.policy_fitted = True # TODO: uncomment this after implementation
 
     def predict_action(
         self,
@@ -83,7 +88,7 @@ class ValueIteration(AbstractAgent):
         if not self.policy_fitted:
             self.update_agent()
 
-        # TODO: Return action from learned policy
+        return self.pi[observation], {}
         raise NotImplementedError("predict_action() is not implemented.")
 
 
@@ -124,11 +129,30 @@ def value_iteration(
     """
     n_states, n_actions = R_sa.shape
     V = np.zeros(n_states, dtype=float)
-    # rng = np.random.default_rng(seed)  uncomment this
-    pi = None
+    rng = np.random.default_rng(seed)
 
-    # TODO: update V using the Q values until convergence
+    while True:
+        V_before = V.copy()
+        Q = np.zeros((n_states, n_actions), dtype = float)
+        
+        for state in range(n_states):
+            for action in range(n_actions):
+                Q[state, action] = R_sa[state, action] + gamma * np.sum(T[state, action] * V_before)
 
-    # TODO: Extract the greedy policy from V and update pi
+            V[state] = np.max(Q[state])
+
+        if np.max(abs(V - V_before)) < epsilon:
+            break
+
+    pi = np.zeros(n_states, dtype = int)
+
+    for state in range(n_states):
+        values = np.zeros(n_actions, dtype = float)
+
+        for action in range(n_actions):
+            values[action] = R_sa[state, action] + gamma * np.sum(T[state, action] * V)
+
+        choosen_action = np.flatnonzero(values == np.max(values))
+        pi[state] = rng.choice(choosen_action)
 
     return V, pi
