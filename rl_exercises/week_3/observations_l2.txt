@@ -1,0 +1,7 @@
+There is no pretty big difference in the results between SARSA and Q-Learning.
+Both algorithms are able to find the solution pretty fast. Mayby is due to the
+simple enviroment.
+
+First both algorithms start at a reward of 9.0 and increase after 2000 steps to a reward of 50.0.
+Form there on the reward remains almost the same and changes kinda random at some stages, but
+switch back to the rewards before after another stage. Both end up at a reward of 50.0
