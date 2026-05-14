@@ -14,7 +14,7 @@ class QNetwork(nn.Module):
             → Linear(hidden_dim→n_actions)
     """
 
-    def __init__(self, obs_dim: int, n_actions: int, hidden_dim: int = 64) -> None:
+    def __init__(self, obs_dim: int, n_actions: int, hidden_dim: int = 64, num_layers: int = 2) -> None:
         """
         Parameters
         ----------
@@ -26,17 +26,17 @@ class QNetwork(nn.Module):
             Hidden layer size.
         """
         super().__init__()
-        self.net = nn.Sequential(
-            OrderedDict(
-                [
-                    ("fc1", nn.Linear(obs_dim, hidden_dim)),
-                    ("relu1", nn.ReLU()),
-                    ("fc2", nn.Linear(hidden_dim, hidden_dim)),
-                    ("relu2", nn.ReLU()),
-                    ("out", nn.Linear(hidden_dim, n_actions)),
-                ]
-            )
-        )
+        layers = OrderedDict()
+
+        layers["fc1"] = nn.Linear(obs_dim, hidden_dim)
+        layers["relu1"] = nn.ReLU()
+
+        for i in range(2, num_layers + 1):
+            layers[f"fc{i}"] = nn.Linear(hidden_dim, hidden_dim)
+            layers[f"relu{i}"] = nn.ReLU()
+
+        layers["out"] = nn.Linear(hidden_dim, n_actions)
+        self.net = nn.Sequential(layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
