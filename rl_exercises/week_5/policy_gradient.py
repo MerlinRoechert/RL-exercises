@@ -86,7 +86,16 @@ class Policy(nn.Module):
         # TODO: Apply fc1 followed by ReLU (Flatten input if needed)
         # TODO: Apply fc2 to get logits
         # TODO: Return softmax over logits along the last dimension
-        pass
+
+        # if x.dim() == 1:
+        #     x = x.unsqueeze(0)
+
+        x = self.fc1(x)
+        x = torch.relu(x)
+        x = self.fc2(x)
+        x = torch.softmax(x, dim=-1)
+
+        return x
 
 
 class REINFORCEAgent(AbstractAgent):
@@ -160,7 +169,22 @@ class REINFORCEAgent(AbstractAgent):
         # TODO: Pass state through the policy network to get action probabilities
         # If evaluate is True, return the action with highest probability
         # Otherwise, sample from the action distribution and return the log-probability as a key in the dictionary (Hint: use torch.distributions.Categorical)
-        return 0, {}  # Placeholder return value
+
+        state_t = torch.tensor(state, dtype=torch.float32)
+
+        probabilities = self.policy(state_t)
+
+        if evaluate:
+            action = torch.argmax(probabilities, dim=-1).item()
+            return action, {}
+
+        distribution = torch.distributions.Categorical(probabilities)
+
+        action = distribution.sample()
+
+        log_probability = distribution.log_prob(action)
+
+        return action.item(), {"log_prob": log_probability}  # Placeholder return value
 
     def compute_returns(self, rewards: List[float]) -> torch.Tensor:
         """
@@ -181,7 +205,14 @@ class REINFORCEAgent(AbstractAgent):
         #       - Update R = r + gamma * R
         #       - Insert R at the beginning of the returns list
         # TODO: Convert the list of returns to a torch.Tensor and return
-        pass
+
+        mylist = []
+        R = 0
+        for r in reversed(rewards):
+            R = r + self.gamma * R
+            mylist.insert(0, R)
+        
+        return torch.tensor(mylist, dtype=torch.float32)
 
     def update_agent(
         self,
@@ -212,7 +243,7 @@ class REINFORCEAgent(AbstractAgent):
         # normalize advantages
         # TODO: Normalize advantages with mean and standard deviation,
         # and add 1e-8 to the denominator to avoid division by zero
-        advantages = returns_t
+        advantages = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-8)
 
         lp_tensor = torch.stack(log_probs)
         loss = -torch.sum(lp_tensor * advantages)
