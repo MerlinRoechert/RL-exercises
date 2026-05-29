@@ -243,7 +243,8 @@ class REINFORCEAgent(AbstractAgent):
         # normalize advantages
         # TODO: Normalize advantages with mean and standard deviation,
         # and add 1e-8 to the denominator to avoid division by zero
-        advantages = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-8)
+        # advantages = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-8)
+        advantages = returns_t
 
         lp_tensor = torch.stack(log_probs)
         loss = -torch.sum(lp_tensor * advantages)
@@ -307,6 +308,20 @@ class REINFORCEAgent(AbstractAgent):
         self.policy.eval()
         returns: List[float] = []
         # TODO: rollout num_episodes in eval_env and aggregate undiscounted returns across episodes
+
+        for _ in range(num_episodes):
+            state, _ = eval_env.reset()
+            done = False
+            episode_return = 0.0
+
+            while not done:
+                action, _ = self.predict_action(state, evaluate=True)
+                next_state, reward, term, trunc, _ = eval_env.step(action)
+                done = term or trunc
+                episode_return += reward
+                state = next_state
+
+            returns.append(episode_return)
 
         self.policy.train()  # Set back to training mode
 

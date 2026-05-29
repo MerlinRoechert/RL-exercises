@@ -1,0 +1,10 @@
+- How does the length of the trajectories affect the training?
+=> It seems when the returns are low the trajectories are short. The agent is able to learn basic balancing mechanism due to the credit assignemnt being small.
+As the agent gets better the trajectories also increases indicating high variance. The agent does perform poorly at the end or vise versa becoming noisy because of this high variance
+
+- Does the same network architecture and learning rate work for `LunarLander-v2`?
+=> No it will not work as, the learning rate will be incredibly high for policy gradient. On LunarLander this high of a learnig rate will cause the policy parameters to overshoot optimal regions in the policy space
+causing the landing craft to get out of control. 
+
+- How is the sample complexity (how many steps it takes to solve the environment) of this algorithm related to the DQN from the last exercise?
+=> Reinforcer has a high sample complexity than DQN as it cannot reuse historical data, requiring thousands more individual environment interactions for stable convergence.
