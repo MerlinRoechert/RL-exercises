@@ -1,0 +1,15 @@
+Batch Size
+In the batch size I have observed that the larger batch size was initially slow but much more stable than small batch and also reached high performance. The baseline batch showed decent performance whereas the small batch size is much more noisier as the reward spiked to 200 drop significantly to 70 showing unstable performance.
+
+Buffer Size
+Here, all three buffer sizes showed similar learning speeds early on and reached around 150-200 reward by frame 10k. The small buffer shows instability crashing to low rewards maybe as it forgets earlier experience which led to overfitting
+
+Network Width
+Here, it seems like the narrow network reached the highest peak at around 70K frame and dropped significantly showing instability. The baseline shows steady increment of reward with stability but the wide network although is stable but only reached max reward of 300 towards the end; this shows that for CartPole a wide network does not help and may slow learning due to having more parameters for simple task
+ 
+Network Depth
+In the beginning all the network depth shows similar learning speed and reward achievement. Around 20k frames the shallow network reaches around 300 but then is unstable. The baseline is stable but noisy. The deep network improved significantly and reached 460 and shows upward trend. Here, the depth helps the agent learn a better q-function but has a slow learning rate at the beginning
+
+
+
+

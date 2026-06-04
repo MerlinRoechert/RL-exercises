@@ -5,3 +5,9 @@ simple enviroment.
 First both algorithms start at a reward of 9.0 and increase after 2000 steps to a reward of 50.0.
 Form there on the reward remains almost the same and changes kinda random at some stages, but
 switch back to the rewards before after another stage. Both end up at a reward of 50.0
+
+
+RLiable shows seed variability and confidence intervals in addition to plain averages
+Different seeds lead to different learning results
+IQM and median are more robust than the mean because they are less affected by outliers
+The DQN learns the task, but the results are still unstable across seeds
