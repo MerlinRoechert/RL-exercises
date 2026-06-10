@@ -102,27 +102,22 @@ class PPOAgent(AbstractAgent):
         dones: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # TODO: compute advantages using GAE (Hint: replicate the GAE formula from actor critic)
-        # return None  # template placeholder
+        rewards_t = torch.tensor(rewards, dtype=torch.float32)
+        values = values.view(-1)
+        next_values = next_values.view(-1)
 
-        deltas = (
-            torch.tensor(rewards, dtype=torch.float32)
-            + self.gamma * next_values * (1 - dones)
-            - values
-        )
-        advantages: List[torch.Tensor] = []
-        A = 0.0
-        for delta, done in zip(reversed(deltas), reversed(dones)):
-            A = delta + self.gamma * self.gae_lambda * A * (1 - done)
-            advantages.insert(0, A)
-        advs = torch.stack(advantages)
-        returns = advs + values
+        deltas = rewards_t + self.gamma * next_values * (1.0 - dones) - values
+        advantages = torch.zeros_like(rewards_t)
+        advantage = 0
 
-        # normalize
-        advs = (advs - advs.mean()) / (advs.std(unbiased=False) + 1e-8)
+        for t in reversed(range(len(rewards_t))):
+            advantage = (deltas[t] + self.gamma * self.gae_lambda * advantage * (1.0 - dones[t]))
+            advantages[t] = advantage
 
-        # **detach both** so that later `loss.backward()` never
-        # tries to re-enter this graph
-        return advs.detach(), returns.detach()
+        returns = advantages + values
+        advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+
+        return advantages.detach(), returns.detach()
 
     def update(self, trajectory: List[Any]) -> None:
         # unpack trajectory
@@ -134,65 +129,41 @@ class PPOAgent(AbstractAgent):
         dones = torch.tensor([t[5] for t in trajectory], dtype=torch.float32)
 
         # TODO: compute values and next_values without gradients
-        # values = ...  # noqa: F841  # template placeholder
-        # next_values = ...  # noqa: F841  # template placeholder
-
+        next_states = torch.stack([torch.from_numpy(t[6]).float() for t in trajectory])
         with torch.no_grad():
-            values = self.value_fn(states)
-            next_states = torch.stack(
-                [torch.from_numpy(t[6]).float() for t in trajectory]
-            )
-            next_values = self.value_fn(next_states)
+            values = self.value_fn(states).view(-1)
+            next_values = self.value_fn(next_states).view(-1)
 
         # TODO: compute advantages and returns
-        # advantages = ...  # template placeholder
-        # returns = ...  # template placeholder
-
         advantages, returns = self.compute_gae(rewards, values, next_values, dones)
 
-        dataset = torch.utils.data.TensorDataset(
-            states, actions, old_logps, advantages, returns
-        )
-        loader = torch.utils.data.DataLoader(
-            dataset, batch_size=self.batch_size, shuffle=True
-        )
+        dataset = torch.utils.data.TensorDataset(states, actions, old_logps, advantages, returns)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
         for _ in range(self.epochs):
             for b_states, b_actions, b_oldlogp, b_adv, b_ret in loader:
                 # TODO: compute policy loss, value loss, and entropy loss
-
-                # TODO: compute new log probabilities by sampling actions from the policy distribution
-                # new_logp = ...  # noqa: F841  # template placeholder
-
-                # TODO: compute the ratio of new log probabilities to old log probabilities
-
-                # TODO: compute the clipped surrogate loss using the clipped objective
-                # policy_loss = ...  # template placeholder
-
-                # TODO: compute value loss using mean squared error
-                # value_loss = ...  # template placeholder
-
-                # TODO: compute entropy loss using the distribution's entropy
-                # entropy_loss = ...  # template placeholder
-
                 probs = self.policy(b_states)
                 dist = Categorical(probs)
+
+                # TODO: compute new log probabilities by sampling actions from the policy distribution
                 new_logp = dist.log_prob(b_actions)
+
+                # TODO: compute the ratio of new log probabilities to old log probabilities
                 ratio = torch.exp(new_logp - b_oldlogp)
-                surr1 = ratio * b_adv
-                surr2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * b_adv
-                policy_loss = -torch.min(surr1, surr2).mean()
 
-                value_preds = self.value_fn(b_states).squeeze(-1)
-                value_loss = F.mse_loss(value_preds, b_ret)
+                # TODO: compute the clipped surrogate loss using the clipped objective
+                unclipped_objective = ratio * b_adv
+                clipped_objective = (torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * b_adv)
+                policy_loss = -torch.min(unclipped_objective, clipped_objective).mean()
 
+                # TODO: compute value loss using mean squared error
+                value_loss = torch.mean((self.value_fn(b_states).view(-1) - b_ret) ** 2)
+
+                # TODO: compute entropy loss using the distribution's entropy
                 entropy_loss = -dist.entropy().mean()
 
-                loss = (
-                    policy_loss
-                    + self.vf_coef * value_loss
-                    + self.ent_coef * entropy_loss
-                )
+                loss = (policy_loss + self.vf_coef * value_loss + self.ent_coef * entropy_loss)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()

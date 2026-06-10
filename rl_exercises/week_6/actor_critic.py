@@ -88,24 +88,22 @@ class ActorCriticAgent(AbstractAgent):
         self, states: List[np.ndarray], rewards: List[float]
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # TODO: convert rewards into discounted returns
-
-        current_return = 0.0
-        returns = []
-        for r in reversed(rewards):
-            current_return = r + self.gamma * current_return
-            returns.insert(0, current_return)
-        returns = torch.tensor(returns, dtype=torch.float32)
+        returns = self.compute_returns(rewards)
 
         # TODO: convert states list into a torch batch and compute state-values
         state_batch = torch.stack([torch.from_numpy(s).float() for s in states])
-        values = self.value_fn(state_batch).squeeze()
+        with torch.no_grad():
+            values = self.value_fn(state_batch).view(-1)
 
 
         # TODO: compute raw advantages = returns - values
-        advantages = (returns - values).detach()
+        advantages = returns - values
 
         # TODO: normalize advantages to zero mean and unit variance and use 1e-8 for numerical stability
-        advantages = (advantages - advantages.mean()) / (advantages.std(unbiased=False) + 1e-8)
+        advantages = (
+            (advantages - advantages.mean())
+            / (advantages.std(unbiased=False) + 1e-8)
+        ).detach()
 
         # return normalized advantages and returns
         # return None  # template placeholder
@@ -129,24 +127,24 @@ class ActorCriticAgent(AbstractAgent):
         # TODO: compute values and next_values using your value_fn
         state_batch = torch.stack([torch.from_numpy(s).float() for s in states])
         next_state_batch = torch.stack([torch.from_numpy(s).float() for s in next_states])
-        values = self.value_fn(state_batch).squeeze()
-        next_values = self.value_fn(next_state_batch).squeeze()
+        with torch.no_grad():
+            values = self.value_fn(state_batch).view(-1)
+            next_values = self.value_fn(next_state_batch).view(-1)
 
         # TODO: compute deltas: one-step TD errors
-        deltas = []
-        
-        for r, v, nv, d in zip(rewards, values, next_values, dones):
-            delta = r + self.gamma * nv * (1 - d) - v
-            deltas.append(delta)
-        deltas = torch.tensor(deltas, dtype=torch.float32)
+        rewards_t = torch.tensor(rewards, dtype=torch.float32)
+        dones_t = torch.tensor(dones, dtype=torch.float32)
+        deltas = rewards_t + self.gamma * next_values * (1.0 - dones_t) - values
 
         # TODO: accumulate GAE advantages backwards
-        advantages = []
+        advantages = torch.zeros_like(rewards_t)
         advantage = 0.0
-        for delta, d in zip(reversed(deltas), reversed(dones)):
-            advantage = delta + self.gamma * self.gae_lambda * advantage * (1 - d)
-            advantages.insert(0, advantage)
-        advantages = torch.tensor(advantages, dtype=torch.float32)  
+        for t in reversed(range(len(rewards_t))):
+            advantage = (
+                deltas[t]
+                + self.gamma * self.gae_lambda * advantage * (1.0 - dones_t[t])
+            )
+            advantages[t] = advantage
 
 
         # TODO: compute returns using advantages and values
