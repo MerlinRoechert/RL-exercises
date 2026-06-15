@@ -9,6 +9,7 @@ from typing import Any, List, Tuple
 import gymnasium as gym
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 
