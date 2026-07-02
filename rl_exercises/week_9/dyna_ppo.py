@@ -158,9 +158,19 @@ class DynaPPOAgent(PPOAgent):
 
             # TODO: Predict next state delta and reward using the model
             # TODO: Compute loss for state prediction and reward prediction
-            loss_s = ...
-            loss_r = ...
-            loss = ...
+            s_tensor = torch.tensor(np.array(states), dtype=torch.float32)
+            a_tensor = torch.tensor(np.array(actions), dtype=torch.long)
+            r_tensor = torch.tensor(np.array(rewards), dtype=torch.float32)
+            s_next_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
+
+            a_onehot = torch.nn.functional.one_hot(a_tensor, num_classes=self.env.action_space.n).float()
+
+            delta_s_pred, r_pred = self.model(s_tensor, a_onehot)
+            delta_s_target = s_next_tensor - s_tensor
+
+            loss_s = torch.nn.functional.mse_loss(delta_s_pred, delta_s_target)
+            loss_r = torch.nn.functional.mse_loss(r_pred, r_tensor)
+            loss = loss_s + loss_r
 
             self.model_opt.zero_grad()
             loss.backward()
@@ -195,16 +205,26 @@ class DynaPPOAgent(PPOAgent):
             }
 
         # TODO: Sample a batch of transitions from the replay buffer
-        val_batch = ...
+        val_batch = random.sample(self.real_buffer, num_samples)
         states, actions, rewards, next_states, _ = zip(*val_batch)
 
         # TODO: Compute MSE (L2) and MAE (L1) for both state and reward predictions
         with torch.no_grad():
             # Calculate metrics
-            state_mse = ...
-            reward_mse = ...
-            state_mae = ...
-            reward_mae = ...
+            s_tensor = torch.tensor(np.array(states), dtype=torch.float32)
+            a_tensor = torch.tensor(np.array(actions), dtype=torch.long)
+            r_tensor = torch.tensor(np.array(rewards), dtype=torch.float32)
+            s_next_tensor = torch.tensor(np.array(next_states), dtype=torch.float32)
+
+            a_onehot = torch.nn.functional.one_hot(a_tensor, num_classes=self.env.action_space.n).float()
+            delta_s_pred, r_pred = self.model(s_tensor, a_onehot)
+            delta_s_target = s_next_tensor - s_tensor
+
+            # Calculate metrics
+            state_mse = torch.nn.functional.mse_loss(delta_s_pred, delta_s_target).item()
+            reward_mse = torch.nn.functional.mse_loss(r_pred, r_tensor).item()
+            state_mae = torch.nn.functional.l1_loss(delta_s_pred, delta_s_target).item()
+            reward_mae = torch.nn.functional.l1_loss(r_pred, r_tensor).item()
 
         return {
             "state_mse": state_mse,
@@ -235,17 +255,27 @@ class DynaPPOAgent(PPOAgent):
             # TODO: Simulate a trajectory using the model
             for step in range(self.imag_horizon):
                 # TODO: Predict action, log-probability, entropy, and value from the PPO policy
-                action, logp, ent, val = ...
+                # action, logp, ent, val = ...
+                s_t = torch.tensor(s, dtype=torch.float32).unsqueeze(0)
 
+                with torch.no_grad():
+                    logits = self.policy(s_t)
+                    dist = torch.distributions.Categorical(logits=logits)
+                    action_tensor = dist.sample()
+                    action = action_tensor.item()
+                    logp = dist.log_prob(action_tensor)
+                    ent = dist.entropy()
+                    val = self.value_fn(s_t).item()
+                    
                 # TODO: Prepare model input tensors
-                a_oh = ...  # noqa: F841
-                s_t = ...  # noqa: F841
+                a_oh = torch.nn.functional.one_hot(action_tensor, num_classes=self.env.action_space.n).float() # noqa: F841
 
                 # TODO: Predict next state delta and reward
                 with torch.no_grad():  # Don't track gradients during imagination
-                    delta, r_pred = ...
-                    s2 = ...
-                    r_val = ...
+                    delta, r_pred = self.model(s_t, a_oh)
+                    s2_tensor = s_t + delta
+                    s2 = s2_tensor.squeeze(0).numpy()
+                    r_val = r_pred.item()
 
                 # Add some termination probability to make rollouts more realistic
                 done_prob = 0.05  # 5% chance of termination per step
@@ -421,8 +451,18 @@ class DynaPPOAgent(PPOAgent):
 
             # TODO: Collect one real trajectory (episode)
             while not done and self.real_steps < total_steps:
-                action, logp, ent, val = ...
-                next_state, reward, term, trunc, _ = ...
+                s_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+                with torch.no_grad():
+                   logits = self.policy(s_t)
+                   dist = torch.distributions.Categorical(logits=logits)
+                   action_tensor = dist.sample()
+                   action = action_tensor.item()
+                   logp = dist.log_prob(action_tensor)
+                   ent = dist.entropy()
+                   val = self.value_fn(s_t).item()
+                      
+                # action, logp, ent, val = ...
+                next_state, reward, term, trunc, _ = self.env.step(action)
                 done = term or trunc
                 real_traj.append(
                     (state, action, logp, ent, reward, float(done), next_state)
@@ -464,7 +504,7 @@ class DynaPPOAgent(PPOAgent):
             self.total_episodes += 1
 
             # TODO: Perform PPO update on real transitions
-            policy_loss, value_loss, entropy_loss = ...
+            policy_loss, value_loss, entropy_loss = self.update(real_traj)
             last_return = sum(r for *_, r, _, _ in real_traj)
 
             # 2) Model-based steps if enabled
@@ -474,8 +514,8 @@ class DynaPPOAgent(PPOAgent):
             # TODO: If using model, train it and perform imagined updates
             if self.use_model:
                 self.store_real(real_traj)
-                model_state_loss, model_reward_loss = ...
-                imag_policy_loss, imag_value_loss, imag_entropy_loss = ...
+                model_state_loss, model_reward_loss = self.train_model()
+                imag_policy_loss, imag_value_loss, imag_entropy_loss = self.imagine_and_update()
 
             # Unified logging with step tracking
             stats = self.get_step_statistics()
