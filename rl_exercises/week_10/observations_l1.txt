@@ -1,0 +1,18 @@
+algorithm: DQN
+environment: CartPole-v1
+optimizer: random search
+train_seeds: [0, 1, 2]
+test_seeds: [10, 11, 12, 13, 14]
+num_frames: 12000
+eval_episodes: 10
+best_trial: trial_1
+best_config: {'buffer_capacity': 10000, 'batch_size': 64, 'lr': 0.0005, 'gamma': 0.99, 'epsilon_decay': 1000, 'target_update_freq': 1000, 'hidden_dim': 64, 'num_layers': 2}
+best_train_scores: 200.9 +/- 17.8 ([194.8, 225.1, 182.9])
+best_test_scores: 211.6 +/- 21.3 ([237.0, 235.0, 182.6, 197.4, 206.1])
+default_test_scores: 209.0 +/- 35.2 ([221.9, 228.0, 161.1, 257.3, 176.8])
+
+The best HPO configuration worked well on the unseen test seeds. Its average
+return was slightly higher than the default configuration, but the difference was
+small. Therefore, HPO did not clearly outperform the default setting. The result
+matches my expectation: on CartPole, HPO can find a good configuration, but with
+only a few training seeds the improvement is not very robust.
